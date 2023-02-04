@@ -1,5 +1,4 @@
 #!/bin/sh
-# forum: https://1024.day
 
 if [[ $EUID -ne 0 ]]; then
     clear
@@ -7,13 +6,15 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-timedatectl set-timezone Asia/Shanghai
+timedatectl set-timezone Asia/Taipei
 v2path=$(cat /dev/urandom | head -1 | md5sum | head -c 6)
 v2uuid=$(cat /proc/sys/kernel/random/uuid)
 
 install_precheck(){
-    echo "====输入已经DNS解析好的域名===="
+    echo "====输入已经DNS解析好的trojan域名===="
     read domain
+    echo "====输入已经DNS解析好的web域名===="
+    read domainn
     
     if [ -f "/usr/bin/apt-get" ]; then
         apt-get update -y
@@ -46,93 +47,154 @@ install_nginx(){
     fi
 
 cat >/etc/nginx/nginx.conf<<EOF
+user www-data;
 pid /var/run/nginx.pid;
 worker_processes auto;
 worker_rlimit_nofile 51200;
+include /etc/nginx/modules-enabled/*.conf;
+
 events {
     worker_connections 1024;
     multi_accept on;
     use epoll;
 }
+stream { 
+# 这里就是 SNI 识别，将域名映射成一个配置名
+  map $ssl_preread_server_name $backend_name { 
+    $domainn web;
+# Trojan 流量直接转发到中间层：proxy_trojan
+    $domain trojan; 
+# 域名都不匹配情况下的默认值 
+    default web; 
+  } 
+# web，配置转发详情
+#  upstream proxy_web {
+#    server 127.0.0.1:10250;
+#  } 
+#  server {
+#    listen 10250 proxy_protocol;
+#    proxy_pass  web;
+#  }   
+  upstream web { 
+    server 127.0.0.1:10240; 
+  } 
+# 这里的 server 就是用来帮 Trojan 卸载代理协议的中间层
+#  upstream proxy_trojan {
+#    server 127.0.0.1:10249;
+#  } 
+#  server {
+#    listen 10249 proxy_protocol;
+#    proxy_pass  trojan;
+#  }  
+# trojan，配置转发详情
+  upstream trojan { 
+    server 127.0.0.1:10241;
+  } 
+
+# 监听 443 并开启 ssl_preread
+  server { 
+    listen 443 reuseport; 
+    listen [::]:443 reuseport; 
+    proxy_pass $backend_name;
+#    proxy_protocol on; 
+    ssl_preread on; 
+  }
+}
 http {
-    server_tokens off;
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    keepalive_timeout 120s;
-    keepalive_requests 10000;
-    types_hash_max_size 2048;
-    include /etc/nginx/mime.types;
-    access_log off;
-    error_log /dev/null;
-    server {
-        listen 80;
-        listen [::]:80;
-        server_name $domain;
-        location / {
-            return 301 https://\$server_name\$request_uri;
-        }
+server {
+    listen 10240 ssl http2;
+    server_name $domainn;  
+    
+    ssl_certificate       /etc/letsencrypt/live/$domainn/server.crt; 
+    ssl_certificate_key   /etc/letsencrypt/live/$domainn/server.key;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:MozSSL:10m;
+    ssl_session_tickets off;
+
+    ssl_protocols         TLSv1.2 TLSv1.3;
+    ssl_ciphers           ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+    gzip on;
+    gzip_http_version 1.1;
+    gzip_vary on;
+    gzip_comp_level 6;
+    gzip_proxied any;
+    gzip_types text/plain text/css application/json application/javascript application/x-javascript text/javascript;
+    
+    location / {
+        proxy_pass https://www.aozora.gr.jp; #伪装网址
+        proxy_ssl_server_name on;
+        proxy_redirect off;
+        sub_filter_once off;
+        sub_filter "www.aozora.gr.jp" $server_name;
+        proxy_set_header Host "www.aozora.gr.jp";
+        proxy_set_header Referer $http_referer;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header User-Agent $http_user_agent;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Accept-Encoding "";
+        proxy_set_header Accept-Language "zh-CN";
     }
-    server {
-        listen 443 ssl http2;
-        listen [::]:443 ssl http2;
-        server_name $domain;
-        ssl_protocols TLSv1.1 TLSv1.2 TLSv1.3;
-        ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:HIGH:!aNULL:!MD5:!RC4:!DHE;
-        ssl_prefer_server_ciphers on;
-        ssl_certificate /etc/letsencrypt/live/$domain/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/$domain/privkey.pem;        
-        location / {
-            default_type text/plain;
-            return 200 "Hello World !";
-        }        
-        location /$v2path {
-            proxy_redirect off;
-            proxy_pass http://127.0.0.1:8080;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade \$http_upgrade;
-            proxy_set_header Connection "upgrade";
-            proxy_set_header Host \$http_host;
-        }
+    
+    location = /ray {
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
+}
+
+server {
+    listen 80;
+    server_name $domainn;    
+    rewrite ^(.*)$ https://${server_name}$1 permanent;
+}
 }
 EOF
 }
 
 acme_ssl(){    
     apt-get -y install cron socat || yum -y install cronie socat
-    curl https://get.acme.sh | sh -s email=my@example.com
+    curl https://get.acme.sh | sh
     mkdir -p /etc/letsencrypt/live/$domain
-    ~/.acme.sh/acme.sh --issue -d $domain --standalone --keylength ec-256 --pre-hook "systemctl stop nginx" --post-hook "~/.acme.sh/acme.sh --installcert -d $domain --ecc --fullchain-file /etc/letsencrypt/live/$domain/fullchain.pem --key-file /etc/letsencrypt/live/$domain/privkey.pem --reloadcmd \"systemctl restart nginx\""
+    mkdir -p /etc/letsencrypt/live/$domainn
+    ~/.acme.sh/acme.sh --issue -d $domain --standalone --keylength ec-256 --pre-hook "systemctl stop nginx" --post-hook "~/.acme.sh/acme.sh --installcert -d $domain --ecc --fullchain-file /etc/letsencrypt/live/$domain/server.crt --key-file /etc/letsencrypt/live/$domain/server.key --reloadcmd \"systemctl restart nginx\""
+    ~/.acme.sh/acme.sh --issue -d $domainn --standalone --keylength ec-256 --pre-hook "systemctl stop nginx" --post-hook "~/.acme.sh/acme.sh --installcert -d $domainn --ecc --fullchain-file /etc/letsencrypt/live/$domainn/server.crt --key-file /etc/letsencrypt/live/$domainn/server.key --reloadcmd \"systemctl restart nginx\""
 }
 
-install_v2ray(){    
-    bash <(curl -L https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh) --version v4.45.2
+install_v2ray(){
+    bash <(curl -L https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh) 
     
 cat >/usr/local/etc/v2ray/config.json<<EOF
 {
+  "log": {
+    "loglevel": "warning",
+    "access": "/var/log/v2ray/access.log", 
+    "error": "/var/log/v2ray/error.log"
+  },
   "inbounds": [
     {
-      "port": 8080,
-      "protocol": "vmess",
+      "port": 8388, 
+      "protocol": "vmess",    
       "settings": {
         "clients": [
           {
-            "id": "$v2uuid"
+            "id": "",  
+            "alterId": 0
           }
         ]
-      },
-      "streamSettings": {
-        "network": "ws",
-        "wsSettings": {
-        "path": "/$v2path"
-        }
       }
     }
   ],
   "outbounds": [
     {
-      "protocol": "freedom",
+      "protocol": "freedom",  
       "settings": {}
     }
   ]
@@ -140,141 +202,85 @@ cat >/usr/local/etc/v2ray/config.json<<EOF
 EOF
 
     systemctl enable v2ray.service && systemctl restart v2ray.service
-    rm -f tcp-wss.sh install-release.sh
+    rm -f nginx-trojan.sh install-release.sh
 
-cat >/usr/local/etc/v2ray/client.json<<EOF
+
+install_trojan-go(){
+    wget https://github.com/p4gefau1t/trojan-go/releases/download/v0.10.6/trojan-go-linux-amd64.zip
+    unzip -o trojan-go-linux-amd64.zip -d /usr/local/bin/trojan-go
+    
+
+cat >/usr/local/bin/trojan-go/config.json<<EOF
 {
-===========配置参数=============
-地址：${domain}
-端口：443/8080
-UUID：${v2uuid}
-加密方式：aes-128-gcm
-传输协议：ws
-路径：/${v2path}
-底层传输：tls
-注意：8080是免流端口不需要打开tls
+    "run_type": "server",
+    "local_addr": "127.0.0.1",
+    "local_port": 10241,
+    "remote_addr": "127.0.0.1",
+    "remote_port": 80,
+    "log_level": 1,
+    "log_file": "/usr/local/bin/trojan-go/trojan-go.log",
+    "password": [
+        ""
+    ],
+    "ssl": {
+        "cert": "/etc/letsencrypt/live/$domain/server.crt",
+        "key": "/etc/letsencrypt/live/$domain/server.key"
+    }
 }
 EOF
 
-    clear
-}
+cat >/etc/systemd/system/trojan-go.service<<EOF
 
-install_sslibev(){
-    if [ -f "/usr/bin/apt-get" ];then
-        apt-get update -y
-        apt-get install -y --no-install-recommends \
-            autoconf automake debhelper pkg-config asciidoc xmlto libpcre3-dev apg pwgen rng-tools \
-            libev-dev libc-ares-dev dh-autoreconf libsodium-dev libmbedtls-dev git
-    else
-        yum update -y
-        yum install epel-release -y
-        yum install gcc gettext autoconf libtool automake make pcre-devel asciidoc xmlto c-ares-devel libev-devel libsodium-devel mbedtls-devel git -y  
-    fi
-
-    git clone https://github.com/shadowsocks/shadowsocks-libev.git
-    cd shadowsocks-libev
-    git submodule update --init --recursive
-    ./autogen.sh && ./configure --prefix=/usr && make
-    make install
-    mkdir -p /etc/shadowsocks-libev
-
-cat >/etc/shadowsocks-libev/config.json<<EOF
-{
-    "server":["[::0]","0.0.0.0"],
-    "server_port":10240,
-    "password":"$v2uuid",
-    "timeout":600,
-    "method":"chacha20-ietf-poly1305"
-}
-EOF
-
-cat >/etc/systemd/system/shadowsocks.service<<EOF
 [Unit]
-Description=Shadowsocks Server
-After=network.target
+Description=Trojan-Go - An unidentifiable mechanism that helps you bypass GFW
+Documentation=https://github.com/p4gefau1t/trojan-go
+After=network.target nss-lookup.target
 [Service]
-ExecStart=/usr/bin/ss-server -c /etc/shadowsocks-libev/config.json
-Restart=on-abort
+Type=simple
+User=root
+WorkingDirectory=/usr/local/bin/trojan-go
+ExecStart=/usr/local/bin/trojan-go/trojan-go -config /usr/local/bin/trojan-go/config.json
+Restart=on-failure
+RestartSec=10
+RestartPreventExitStatus=23
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    systemctl daemon-reload && systemctl enable shadowsocks.service && systemctl restart shadowsocks.service
+    systemctl daemon-reload && systemctl enable trojan-go.service && systemctl restart trojan-go.service
     cd ..
-    rm -rf shadowsocks-libev tcp-wss.sh
+    rm -rf shadowsocks-libev nginx-trojan.sh
     clear
 }
 
-client_v2ray(){
-    echo
-    echo "安装已经完成"
-    echo
-    echo "===========v2ray配置参数============"
-    echo "地址：${domain}"
-    echo "端口：443/8080"
-    echo "UUID：${v2uuid}"
-    echo "加密方式：aes-128-gcm"
-    echo "传输协议：ws"
-    echo "路径：/${v2path}"
-    echo "底层传输：tls"
-    echo "注意：8080是免流端口不需要打开tls"
-    echo
-}
 
-client_sslibev(){
-    echo
-    echo "安装已经完成"
-    echo
-    echo "===========Shadowsocks配置参数============"
-    echo "地址：0.0.0.0"
-    echo "端口：10240"
-    echo "密码：${v2uuid}"
-    echo "加密方式：chacha20-ietf-poly1305"
-    echo "传输协议：tcp"
-    echo
-}
+
+
 
 start_menu(){
     clear
     echo " ================================================== "
-    echo " 论坛：https://1024.day                              "
-    echo " 介绍：一键安装Shadowsocks-libev和v2ray+ws+tls代理    "
-    echo " 系统：Ubuntu、Debian、CentOS                        "
+    echo " Install Nginx+Trojan sni Stream and V2ray          "
     echo " ================================================== "
     echo
-    echo " 1. 安装Shadowsocks-libev"
-    echo " 2. 安装v2ray+ws+tls"
-    echo " 3. 同时安装上述两种代理"
-    echo " 0. 退出脚本"
+    echo " 1. Start"
+    echo " 0. Exit"
     echo
-    read -p "请输入数字:" num
+    read -p "Please Input:" num
     case "$num" in
-    1)
-    install_sslibev
-    client_sslibev
-    ;;
     2)
     install_precheck
     install_nginx
     acme_ssl
     install_v2ray
-    client_v2ray
-    ;;
-    3)
-    install_precheck
-    install_nginx
-    acme_ssl
-    install_v2ray
-    install_sslibev
-    client_v2ray
-    client_sslibev
+    install_trojan-go
     ;;
     0)
     exit 1
     ;;
     *)
     clear
-    echo "请输入正确数字"
+    echo "Please Input"
     sleep 2s
     start_menu
     ;;
