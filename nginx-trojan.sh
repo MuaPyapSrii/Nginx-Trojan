@@ -138,7 +138,7 @@ server {
         proxy_set_header Accept-Language "zh-CN";
     }
     
-    location = /ray {
+    location = /$v2path  {
         proxy_redirect off;
         proxy_pass http://127.0.0.1:10000;
         proxy_http_version 1.1;
@@ -185,7 +185,7 @@ cat >/usr/local/etc/v2ray/config.json<<EOF
       "settings": {
         "clients": [
           {
-            "id": "",  
+            "id": "$v2uuid",  
             "alterId": 0
           }
         ]
