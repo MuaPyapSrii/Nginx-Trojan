@@ -60,7 +60,7 @@ events {
 }
 stream { 
 # 这里就是 SNI 识别，将域名映射成一个配置名
-  map $ssl_preread_server_name $backend_name { 
+  map \$ssl_preread_server_name \$backend_name { 
     $domainn web;
 # Trojan 流量直接转发到中间层：proxy_trojan
     $domain trojan; 
@@ -95,7 +95,7 @@ stream {
   server { 
     listen 443 reuseport; 
     listen [::]:443 reuseport; 
-    proxy_pass $backend_name;
+    proxy_pass \$backend_name;
 #    proxy_protocol on; 
     ssl_preread on; 
   }
@@ -127,12 +127,12 @@ server {
         proxy_ssl_server_name on;
         proxy_redirect off;
         sub_filter_once off;
-        sub_filter "www.aozora.gr.jp" $server_name;
+        sub_filter "www.aozora.gr.jp" \$server_name;
         proxy_set_header Host "www.aozora.gr.jp";
-        proxy_set_header Referer $http_referer;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header User-Agent $http_user_agent;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Referer \$http_referer;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header User-Agent \$http_user_agent;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header Accept-Encoding "";
         proxy_set_header Accept-Language "zh-CN";
@@ -142,18 +142,18 @@ server {
         proxy_redirect off;
         proxy_pass http://127.0.0.1:10000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
 }
 
 server {
     listen 80;
     server_name $domainn;    
-    rewrite ^(.*)$ https://${server_name}$1 permanent;
+    rewrite ^(.*)$ https://\${server_name}\$1 permanent;
 }
 }
 EOF
