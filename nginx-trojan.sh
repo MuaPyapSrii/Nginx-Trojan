@@ -162,6 +162,7 @@ EOF
 acme_ssl(){    
     apt-get -y install cron socat || yum -y install cronie socat
     curl https://get.acme.sh | sh
+    ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
     mkdir -p /etc/letsencrypt/live/$domain
     mkdir -p /etc/letsencrypt/live/$domainn
     ~/.acme.sh/acme.sh --issue -d $domain --standalone --keylength ec-256 --pre-hook "systemctl stop nginx" --post-hook "~/.acme.sh/acme.sh --installcert -d $domain --ecc --fullchain-file /etc/letsencrypt/live/$domain/server.crt --key-file /etc/letsencrypt/live/$domain/server.key --reloadcmd \"systemctl restart nginx\""
