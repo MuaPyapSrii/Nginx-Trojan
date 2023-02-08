@@ -123,12 +123,12 @@ server {
     gzip_types text/plain text/css application/json application/javascript application/x-javascript text/javascript;
     
     location / {
-        proxy_pass https://www.aozora.gr.jp; #伪装网址
+        proxy_pass https://www.bing.com; #伪装网址
         proxy_ssl_server_name on;
         proxy_redirect off;
         sub_filter_once off;
-        sub_filter "www.aozora.gr.jp" \$server_name;
-        proxy_set_header Host "www.aozora.gr.jp";
+        sub_filter "www.bing.com" \$server_name;
+        proxy_set_header Host "www.bing.com";
         proxy_set_header Referer \$http_referer;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header User-Agent \$http_user_agent;
@@ -232,7 +232,7 @@ cat >/usr/local/bin/trojan-go/config.json<<EOF
     "log_level": 1,
     "log_file": "/usr/local/bin/trojan-go/trojan-go.log",
     "password": [
-        ""
+        "$v2path"
     ],
     "ssl": {
         "cert": "/etc/letsencrypt/live/$domain/server.crt",
@@ -262,6 +262,11 @@ EOF
     systemctl daemon-reload && systemctl enable trojan-go.service && systemctl restart trojan-go.service
     cd ..
     rm -f nginx-trojan.sh install-release.sh
+    cat >/usr/local/etc/v2ray/client.json<<EOF
+{
+===========Password============
+TrojanPassword：${v2path}
+}
     clear
 }
 
