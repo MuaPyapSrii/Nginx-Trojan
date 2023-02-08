@@ -267,11 +267,49 @@ EOF
 ===========Password============
 TrojanPassword：${v2path}
 }
+EOF
     clear
 }
 
 
+install_tuic(){
+    mkdir /usr/local/bin/tuic && cd /usr/local/bin/tuic
+    wget https://github.com/EAimTY/tuic/releases/download/0.8.5/tuic-server-0.8.5-x86_64-linux-gnu
+    chmod +x tuic-server-0.8.5-x86_64-linux-gnu
+    
+cat >/usr/local/bin/tuic/config.json<<EOF
+{
+    "port": 443,
+    "token": ["RelyPz83ey"],
+    "certificate": "/etc/letsencrypt/live/$domain/server.crt",
+    "private_key": "/etc/letsencrypt/live/$domain/server.key",
+    "ip": "0.0.0.0",
+    "congestion_controller": "bbr",
+    "alpn": ["h3"]
+}
+EOF
 
+cat >/etc/systemd/system/tuic.service<<EOF
+[Unit]
+Description=Delicately-TUICed high-performance proxy built on top of the QUIC protocol
+Documentation=https://github.com/EAimTY/tuic
+After=network.target
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/usr/local/bin/tuic
+ExecStart=/usr/local/bin/tuic/tuic-server-0.8.5-x86_64-linux-gnu -c config.json
+Restart=on-failure
+RestartPreventExitStatus=1
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload && systemctl enable tuic.service && systemctl restart tuic.service
+    cd ..
+    rm -f nginx-trojan.sh install-release.sh
+}
 
 
 start_menu(){
@@ -282,6 +320,7 @@ start_menu(){
     echo
     echo " 1. nginx+trojan"
     echo " 2. v2ray"
+    echo " 3. tuic"
     echo " 0. Exit"
     echo
     read -p "Please Input:" num
@@ -294,6 +333,9 @@ start_menu(){
     ;;
     2)
     install_v2ray
+    ;;
+    3)
+    install_tuic
     ;;
     0)
     exit 1
