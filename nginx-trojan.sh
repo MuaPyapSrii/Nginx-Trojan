@@ -258,7 +258,7 @@ EOF
 
     systemctl daemon-reload && systemctl enable trojan-go.service && systemctl restart trojan-go.service
     cd ..
-    rm -rf shadowsocks-libev nginx-trojan.sh
+    rm -f nginx-trojan.sh
     clear
 }
 
@@ -269,7 +269,7 @@ EOF
 start_menu(){
     clear
     echo " ================================================== "
-    echo " Install Nginx+Trojan sni Stream and V2ray          "
+    echo "     Install Nginx+Trojan sni Stream or V2ray       "
     echo " ================================================== "
     echo
     echo " 1. nginx+trojan"
@@ -292,7 +292,7 @@ start_menu(){
     ;;
     *)
     clear
-    echo "Please Input"
+    echo "Please Input Num"
     sleep 2s
     start_menu
     ;;
