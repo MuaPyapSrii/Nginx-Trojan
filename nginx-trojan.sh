@@ -11,9 +11,9 @@ v2path=$(cat /dev/urandom | head -1 | md5sum | head -c 6)
 v2uuid=$(cat /proc/sys/kernel/random/uuid)
 
 install_precheck(){
-    echo "====Inpute trojan domain===="
+    echo "====Input trojan domain===="
     read domain
-    echo "=====Inpute web domain======"
+    echo "=====Input web domain======"
     read domainn
     
     if [ -f "/usr/bin/apt-get" ]; then
@@ -217,7 +217,9 @@ EOF
 
 install_trojan-go(){
     wget https://github.com/p4gefau1t/trojan-go/releases/download/v0.10.6/trojan-go-linux-amd64.zip
+    apt install unzip
     unzip -o trojan-go-linux-amd64.zip -d /usr/local/bin/trojan-go
+    rm trojan-go-linux-amd64.zip
     
 
 cat >/usr/local/bin/trojan-go/config.json<<EOF
@@ -259,7 +261,7 @@ EOF
 
     systemctl daemon-reload && systemctl enable trojan-go.service && systemctl restart trojan-go.service
     cd ..
-    rm -f nginx-trojan.sh
+    rm -f nginx-trojan.sh install-release.sh
     clear
 }
 
