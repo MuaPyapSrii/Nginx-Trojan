@@ -11,9 +11,9 @@ v2path=$(cat /dev/urandom | head -1 | md5sum | head -c 6)
 v2uuid=$(cat /proc/sys/kernel/random/uuid)
 
 install_precheck(){
-    echo "====输入已经DNS解析好的trojan域名===="
+    echo "====Inpute trojan domain===="
     read domain
-    echo "====输入已经DNS解析好的web域名===="
+    echo "=====Inpute web domain======"
     read domainn
     
     if [ -f "/usr/bin/apt-get" ]; then
@@ -30,9 +30,9 @@ install_precheck(){
     if [ "$isPort" != "" ];then
         clear
         echo " ================================================== "
-        echo " 80或443端口被占用，请先释放端口再运行此脚本"
+        echo " 80 or 443 port is occupied"
         echo
-        echo " 端口占用信息如下："
+        echo " info："
         echo $isPort
         echo " ================================================== "
         exit 1
@@ -204,6 +204,15 @@ EOF
     systemctl enable v2ray.service && systemctl restart v2ray.service
     rm -f nginx-trojan.sh install-release.sh
 
+cat >/usr/local/etc/v2ray/client.json<<EOF
+{
+===========UUID============
+UUID：${v2uuid}
+}
+EOF
+
+    clear
+}
 
 install_trojan-go(){
     wget https://github.com/p4gefau1t/trojan-go/releases/download/v0.10.6/trojan-go-linux-amd64.zip
@@ -263,7 +272,8 @@ start_menu(){
     echo " Install Nginx+Trojan sni Stream and V2ray          "
     echo " ================================================== "
     echo
-    echo " 1. Start"
+    echo " 1. nginx+trojan"
+    echo " 2. v2ray"
     echo " 0. Exit"
     echo
     read -p "Please Input:" num
@@ -272,8 +282,10 @@ start_menu(){
     install_precheck
     install_nginx
     acme_ssl
-    install_v2ray
     install_trojan-go
+    ;;
+    2)
+    install_v2ray
     ;;
     0)
     exit 1
