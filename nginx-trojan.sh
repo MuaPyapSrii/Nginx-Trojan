@@ -268,7 +268,7 @@ start_menu(){
     echo
     read -p "Please Input:" num
     case "$num" in
-    2)
+    1)
     install_precheck
     install_nginx
     acme_ssl
