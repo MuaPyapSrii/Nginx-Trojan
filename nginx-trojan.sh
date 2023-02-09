@@ -300,6 +300,8 @@ install_tuic(){
     mkdir /usr/local/bin/tuic && cd /usr/local/bin/tuic
     wget https://github.com/EAimTY/tuic/releases/download/0.8.5/tuic-server-0.8.5-x86_64-linux-gnu
     chmod +x tuic-server-0.8.5-x86_64-linux-gnu
+    cd /root
+    rm tuic-server-0.8.5-x86_64-linux-gnu
     pass=$(openssl rand -base64 16)
     echo "====Please enter the domain name with certificate===="
     read domain
