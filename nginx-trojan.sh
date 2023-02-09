@@ -225,7 +225,7 @@ client_Trojan(){
     echo
     echo "Completed"
     echo
-    echo "===========Trojan+Nginx============"
+    echo "===============Trojan+Nginx================"
     echo "Trojan Domain：${domainn}"
     echo "Trojan Pass：${pass}"
     echo "Nginx WS Path：${v2path}"
@@ -291,7 +291,7 @@ client_Tuic(){
     echo
     echo "Completed"
     echo
-    echo "===========Tuic============"
+    echo "===============Tuic================"
     echo "Token：${pass}"
     echo
 }
@@ -334,7 +334,7 @@ WantedBy=multi-user.target
 EOF
 
     systemctl daemon-reload && systemctl enable tuic.service && systemctl restart tuic.service
-    cd ..
+    
     rm -f nginx-trojan.sh install-release.sh
 }
 
@@ -342,7 +342,7 @@ EOF
 start_menu(){
     clear
     echo " ================================================== "
-    echo "     Install Nginx+Trojan sni Stream or V2ray       "
+    echo "  Install Nginx+Trojan sni Stream or V2ray or Tuic  "
     echo " ================================================== "
     echo
     echo " 1. nginx+trojan"
