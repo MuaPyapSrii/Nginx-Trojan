@@ -7,7 +7,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 timedatectl set-timezone Asia/Taipei
-v2path=$(cat /dev/urandom | head -1 | md5sum | head -c 6)
+v2path=$(cat /dev/urandom | head -1 | md5sum | head -c 12)
 v2uuid=$(cat /proc/sys/kernel/random/uuid)
 
 install_precheck(){
@@ -205,21 +205,42 @@ EOF
     systemctl enable v2ray.service && systemctl restart v2ray.service
     rm -f nginx-trojan.sh install-release.sh
 
-cat >/usr/local/etc/v2ray/client.json<<EOF
-{
-===========UUID============
-UUID：${v2uuid}
-}
-EOF
-
     clear
 }
+
+
+client_V2ray(){
+    echo
+    echo "Completed"
+    echo
+    echo "===========V2ray============"
+    echo "UUID：${v2uuid}"
+    echo
+}
+
+
+
+
+client_Trojan(){
+    echo
+    echo "Completed"
+    echo
+    echo "===========Trojan+Nginx============"
+    echo "Trojan Domain：${domainn}"
+    echo "Trojan Pass：${pass}"
+    echo "Nginx WS Path：${v2path}"
+    echo
+}
+
+
 
 install_trojan-go(){
     wget https://github.com/p4gefau1t/trojan-go/releases/download/v0.10.6/trojan-go-linux-amd64.zip
     apt install unzip
     unzip -o trojan-go-linux-amd64.zip -d /usr/local/bin/trojan-go
     rm trojan-go-linux-amd64.zip
+    pass=$(openssl rand -base64 16)
+
     
 
 cat >/usr/local/bin/trojan-go/config.json<<EOF
@@ -232,7 +253,7 @@ cat >/usr/local/bin/trojan-go/config.json<<EOF
     "log_level": 1,
     "log_file": "/usr/local/bin/trojan-go/trojan-go.log",
     "password": [
-        "$v2path"
+        "$pass"
     ],
     "ssl": {
         "cert": "/etc/letsencrypt/live/$domain/server.crt",
@@ -262,25 +283,29 @@ EOF
     systemctl daemon-reload && systemctl enable trojan-go.service && systemctl restart trojan-go.service
     cd ..
     rm -f nginx-trojan.sh install-release.sh
-    cat >/usr/local/etc/v2ray/client.json<<EOF
-{
-===========Password============
-TrojanPassword：${v2path}
-}
-EOF
+    
     clear
 }
 
+client_Tuic(){
+    echo
+    echo "Completed"
+    echo
+    echo "===========Tuic============"
+    echo "Token：${pass}"
+    echo
+}
 
 install_tuic(){
     mkdir /usr/local/bin/tuic && cd /usr/local/bin/tuic
     wget https://github.com/EAimTY/tuic/releases/download/0.8.5/tuic-server-0.8.5-x86_64-linux-gnu
     chmod +x tuic-server-0.8.5-x86_64-linux-gnu
+    pass=$(openssl rand -base64 16)
     
 cat >/usr/local/bin/tuic/config.json<<EOF
 {
     "port": 443,
-    "token": ["RelyPz83ey"],
+    "token": ["$pass"],
     "certificate": "/etc/letsencrypt/live/$domain/server.crt",
     "private_key": "/etc/letsencrypt/live/$domain/server.key",
     "ip": "0.0.0.0",
@@ -330,12 +355,15 @@ start_menu(){
     install_nginx
     acme_ssl
     install_trojan-go
+    client_Trojan
     ;;
     2)
     install_v2ray
+    client_V2ray
     ;;
     3)
     install_tuic
+    client_Tuic
     ;;
     0)
     exit 1
